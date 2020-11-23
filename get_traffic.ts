@@ -167,7 +167,9 @@ async function checkTrafficClosures() {
             : `at mile marker ${c.StartMileMarker}`;
           const severity = c.RoadwayClosureId === "4" ? "(full)" : "(partial)";
 
-          return `${timeStamp}: New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`;
+          const textMessage = `New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`;
+          console.log(`${timeStamp}: ${textMessage}`);
+          return textMessage;
         });
       }
 
@@ -183,7 +185,9 @@ async function checkTrafficClosures() {
               ? `from mile marker ${c.StartMileMarker} to ${c.EndMileMarker}`
               : `at mile marker ${c.StartMileMarker}`;
 
-            return `${timeStamp}: Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}.`;
+            const textMessage = `Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}.`;
+            console.log(`${timeStamp}: ${textMessage}`);
+            return textMessage;
           }),
         ];
       }
