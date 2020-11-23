@@ -1,6 +1,7 @@
 import Axios from 'axios';
 import * as B from 'bluebird';
 import * as Cron from 'cron';
+import * as fs from 'fs';
 
 const readFileAsync: (name: string, encoding: string) => Promise<any> = B.promisify(require("fs").readFile);
 const writeFileAsync: (name: string, contents: string, encoding: string) => Promise<any> = B.promisify(require("fs").writeFile)
@@ -45,6 +46,7 @@ async function getTrafficData(): Promise<AlertObject[]> {
 }
 
 const fileName = './roaddata.json';
+const archiveDirectory = './archive';
 
 
 function readJSONFile(): Promise<AlertObject[] | null> {
@@ -54,8 +56,14 @@ function readJSONFile(): Promise<AlertObject[] | null> {
   });
 }
 
-function writeToJSONFile(updatedClosures: AlertObject[]): Promise<any> {
-  return writeFileAsync(fileName, JSON.stringify(updatedClosures), 'utf8');
+function writeToJSONFile(updatedClosures: AlertObject[], savedClosures?: AlertObject[]): Promise<any> {
+  return writeFileAsync(fileName, JSON.stringify(updatedClosures), 'utf8')
+    .then(() => {
+      if (savedClosures) {
+        const timeStamp = (new Date()).toISOString();
+        return writeFileAsync(`${archiveDirectory}/${timeStamp}-road-closures.json`, JSON.stringify(updatedClosures), 'utf8');
+      }
+    });
 }
 
 function checkTrafficClosures() {
@@ -83,7 +91,8 @@ function checkTrafficClosures() {
         newClosures.forEach((c) => {
           const directionText = c.IsBothDirectionFlg === 'true' ? 'in both directions' : `going ${c.Direction}`;
           const mileMarkerText = c.EndMileMarker ? `from mile marker ${c.StartMileMarker} to ${c.EndMileMarker}` : `at mile marker ${c.StartMileMarker}`;
-          console.log(`${timeStamp}: New closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`);
+          const severity = c.RoadwayClosureId === '4' ? '(full)' : '(partial)';
+          console.log(`${timeStamp}: New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`);
         })
       }
 
@@ -95,22 +104,42 @@ function checkTrafficClosures() {
         });
       }
 
-      if ((!newOpenings || newOpenings.length === 0) && (!newClosures || newClosures.length === 0)) {
+      const changePresent = (newOpenings && newOpenings.length !== 0) || (newClosures && newClosures.length !== 0);
+
+      if (!changePresent) {
         console.log(`${timeStamp}: No new closures or openings`);
+        return writeToJSONFile(updatedClosures)
       }
 
-      return writeToJSONFile(updatedClosures);
+      return writeToJSONFile(updatedClosures, savedClosures);
     }).catch((err) => {
       console.error('Encountered error fetching new data');
       console.error(err);
     })
 }
 
-var job = new Cron.CronJob(
-	'*/2 * * * *',
-	function() {
-		return checkTrafficClosures();
-	},
-	null,
-	true
-);
+
+async function startJob() {
+  console.log('starting job');
+
+  try {
+    await fs.promises.mkdir(archiveDirectory);
+    console.log('created archive directory');
+  } catch (err) {
+    console.log('archive directory already exists');
+  }
+
+  const cronPattern = '*/2 * * * *'
+  const job = new Cron.CronJob(
+    cronPattern,
+    function() {
+      return checkTrafficClosures();
+    },
+    null,
+    true
+  );
+
+  console.log('job started with cron pattern', cronPattern);
+}
+
+startJob();
