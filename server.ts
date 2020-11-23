@@ -11,7 +11,7 @@ const init = async () => {
     path: "/register",
     handler: (request, h) => {
       console.log(request.headers);
-      console.log(request.body);
+      console.log(request.payload);
       return "Hello World!";
     },
   });

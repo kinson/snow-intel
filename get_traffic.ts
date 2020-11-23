@@ -170,7 +170,7 @@ async function startJob() {
     console.log("archive directory already exists");
   }
 
-  const cronPattern = "*/2 * * * *";
+  const cronPattern = "*/5 * * * *";
   const job = new Cron.CronJob(
     cronPattern,
     function () {
