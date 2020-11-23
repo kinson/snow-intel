@@ -129,9 +129,27 @@ function writeToJSONFile(
   });
 }
 
+function filterOpenings(closure: AlertObject) {
+  const northLatBoundary = 40.517692;
+  const southLatBoundary = 39.084296;
+  const westLongBoundary = -107.399081;
+  const eastLongBoundary = -105.128684;
+
+  const { Latitude, Longitude } = closure.Location;
+  const lat = parseFloat(Latitude);
+  const long = parseFloat(Longitude);
+
+  const inLatBounds = lat >= southLatBoundary && lat <= northLatBoundary;
+  const inLongBounds = long >= westLongBoundary && long <= eastLongBoundary;
+
+  return inLatBounds && inLongBounds;
+}
+
 async function checkTrafficClosures() {
   return B.all([readJSONFile(), getTrafficData()])
-    .then(async ([savedClosures, updatedClosures]) => {
+    .then(async ([savedClosures, updatedStateClosures]) => {
+      const updatedClosures = updatedStateClosures.filter(filterOpenings);
+
       if (!savedClosures) {
         console.log(`Generating new ${roadDataFileName} file.`);
         return writeToJSONFile(updatedClosures);
@@ -222,7 +240,7 @@ async function startJob() {
     console.log("archive directory already exists");
   }
 
-  const cronPattern = "*/5 * * * *";
+  const cronPattern = "*/3 * * * *";
   const job = new Cron.CronJob(
     cronPattern,
     function () {
