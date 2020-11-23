@@ -1,6 +1,6 @@
 import * as Hapi from "@hapi/hapi";
 import * as B from "bluebird";
-import { addDays, format, formatISO } from "date-fns";
+import { addDays, format, formatISO, subHours } from "date-fns";
 import * as Twilio from "twilio";
 
 const readFileAsync: (
@@ -40,7 +40,9 @@ interface Subscription {
   expiration: string;
 }
 
+const denverTzOffset = 7;
 const fileName = "./numbers.json";
+
 function readJSONFile(): Promise<Subscription[] | null> {
   return readFileAsync(fileName, "utf8")
     .then(JSON.parse)
@@ -59,13 +61,18 @@ function sendMessage(h, sub?: Subscription) {
   const welcomeMessage =
     "You are all set, we will keep you up to date on any road closures for the next day. Check exiting conditions here: cotrip.org/travelAlerts.htm";
 
-  const dupeMessage = `You are already signed up until ${
-    sub && format(new Date(sub.expiration), "M/d 'at' h:mm aaaa")
-  }, we will notify you with any road closures.`;
+  const formattedExpiration =
+    sub &&
+    format(
+      subHours(new Date(sub.expiration), denverTzOffset),
+      "M/d 'at' h:mm aaaa"
+    );
+
+  const dupeMessage = `You are already signed up until ${formattedExpiration}, we will notify you with any road closures.`;
 
   twiml.message(sub ? dupeMessage : welcomeMessage);
-
   const response = h.response(twiml.toString());
+
   response.type("text/xml");
   return response;
 }
