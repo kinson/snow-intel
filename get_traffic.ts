@@ -1,7 +1,10 @@
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+require("dotenv").config();
 import Axios from "axios";
 import * as B from "bluebird";
 import * as Cron from "cron";
 import * as fs from "fs";
+import * as Twilio from "twilio";
 
 const readFileAsync: (
   name: string,
@@ -56,40 +59,81 @@ async function getTrafficData(): Promise<AlertObject[]> {
   return closuresData.data.Alerts.Alert;
 }
 
-const fileName = "./roaddata.json";
+const roadDataFileName = "./roaddata.json";
+const subscriptionsFileName = "./numbers.json";
 const archiveDirectory = "./archive";
 
-function readJSONFile(): Promise<AlertObject[] | null> {
-  return readFileAsync(fileName, "utf8")
+interface Subscription {
+  number: string;
+  expiration: string;
+}
+
+function readSubscriptionsFile(): Promise<Subscription[] | null> {
+  return readFileAsync(subscriptionsFileName, "utf8")
     .then(JSON.parse)
     .catch(() => {
       return null;
     });
 }
 
+function readJSONFile(): Promise<AlertObject[] | null> {
+  return readFileAsync(roadDataFileName, "utf8")
+    .then(JSON.parse)
+    .catch(() => {
+      return null;
+    });
+}
+
+function sendMessages(
+  messages: string[],
+  users?: Subscription[]
+): Promise<any> {
+  if (!users || users.length === 0) return;
+  const client = Twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
+  return B.all(
+    messages.reduce((acc, m) => {
+      return [
+        ...acc,
+        ...users.map((u) =>
+          client.messages.create({
+            body: m,
+            from: "+14342267669",
+            to: u.number,
+          })
+        ),
+      ];
+    }, [])
+  );
+}
+
 function writeToJSONFile(
   updatedClosures: AlertObject[],
   savedClosures?: AlertObject[]
 ): Promise<any> {
-  return writeFileAsync(fileName, JSON.stringify(updatedClosures), "utf8").then(
-    () => {
-      if (savedClosures) {
-        const timeStamp = new Date().toISOString();
-        return writeFileAsync(
-          `${archiveDirectory}/${timeStamp}-road-closures.json`,
-          JSON.stringify(updatedClosures),
-          "utf8"
-        );
-      }
+  return writeFileAsync(
+    roadDataFileName,
+    JSON.stringify(updatedClosures),
+    "utf8"
+  ).then(() => {
+    if (savedClosures) {
+      const timeStamp = new Date().toISOString();
+      return writeFileAsync(
+        `${archiveDirectory}/${timeStamp}-road-closures.json`,
+        JSON.stringify(updatedClosures),
+        "utf8"
+      );
     }
-  );
+  });
 }
 
-function checkTrafficClosures() {
+async function checkTrafficClosures() {
   return B.all([readJSONFile(), getTrafficData()])
-    .then(([savedClosures, updatedClosures]) => {
+    .then(async ([savedClosures, updatedClosures]) => {
       if (!savedClosures) {
-        console.log(`Generating new ${fileName} file.`);
+        console.log(`Generating new ${roadDataFileName} file.`);
         return writeToJSONFile(updatedClosures);
       }
 
@@ -110,8 +154,10 @@ function checkTrafficClosures() {
 
       const timeStamp = new Date().toISOString();
 
+      let updates = [];
+
       if (newClosures) {
-        newClosures.forEach((c) => {
+        updates = newClosures.map((c) => {
           const directionText =
             c.IsBothDirectionFlg === "true"
               ? "in both directions"
@@ -121,26 +167,25 @@ function checkTrafficClosures() {
             : `at mile marker ${c.StartMileMarker}`;
           const severity = c.RoadwayClosureId === "4" ? "(full)" : "(partial)";
 
-          console.log(
-            `${timeStamp}: New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`
-          );
+          return `${timeStamp}: New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`;
         });
       }
 
       if (newOpenings) {
-        newOpenings.forEach((c) => {
-          const directionText =
-            c.IsBothDirectionFlg === "true"
-              ? "in both directions"
-              : `going ${c.Direction}`;
-          const mileMarkerText = c.EndMileMarker
-            ? `from mile marker ${c.StartMileMarker} to ${c.EndMileMarker}`
-            : `at mile marker ${c.StartMileMarker}`;
+        updates = [
+          ...updates,
+          ...newOpenings.map((c) => {
+            const directionText =
+              c.IsBothDirectionFlg === "true"
+                ? "in both directions"
+                : `going ${c.Direction}`;
+            const mileMarkerText = c.EndMileMarker
+              ? `from mile marker ${c.StartMileMarker} to ${c.EndMileMarker}`
+              : `at mile marker ${c.StartMileMarker}`;
 
-          console.log(
-            `${timeStamp}: Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}.`
-          );
-        });
+            return `${timeStamp}: Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}.`;
+          }),
+        ];
       }
 
       const changePresent =
@@ -151,6 +196,9 @@ function checkTrafficClosures() {
         console.log(`${timeStamp}: No new closures or openings`);
         return writeToJSONFile(updatedClosures);
       }
+
+      const subscriptions = await readSubscriptionsFile();
+      await sendMessages(updates, subscriptions);
 
       return writeToJSONFile(updatedClosures, savedClosures);
     })

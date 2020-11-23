@@ -82,7 +82,9 @@ const init = async () => {
 
         const twiml = new Twilio.twiml.MessagingResponse();
 
-        twiml.message("The Robots are coming! Head for the hills!");
+        twiml.message(
+          "You are all set, we will keep you up to date on any road closures for the next day."
+        );
 
         const response = h.response(twiml.toString());
         response.type("text/xml");
@@ -108,7 +110,9 @@ const init = async () => {
 
         const twiml = new Twilio.twiml.MessagingResponse();
 
-        twiml.message("The Robots are coming! Head for the hills!");
+        twiml.message(
+          "You are all set, we will keep you up to date on any road closures for the next day."
+        );
 
         const response = h.response(twiml.toString());
         response.type("text/xml");
