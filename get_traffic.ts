@@ -34,7 +34,7 @@ interface AlertObject {
   Impact: string;
   IsBothDirectionFlg: string;
   LastUpdatedDate: string;
-  Location: Location;
+  Location?: Location;
   LocationDescription: string;
   RoadId: string;
   RoadName: string;
@@ -146,6 +146,10 @@ function filterOpenings(closure: AlertObject) {
   const westLongBoundary = -107.399081;
   const eastLongBoundary = -105.128684;
 
+  if (!closure || !closure.Location) {
+    return false;
+  }
+
   const { Latitude, Longitude } = closure.Location;
   const lat = parseFloat(Latitude);
   const long = parseFloat(Longitude);
@@ -195,8 +199,9 @@ async function checkTrafficClosures() {
             ? `from mile marker ${c.StartMileMarker} to ${c.EndMileMarker}`
             : `at mile marker ${c.StartMileMarker}`;
           const severity = c.RoadwayClosureId === "4" ? "(full)" : "(partial)";
+          const locationDescription = ` (${c.LocationDescription})` || "";
 
-          const textMessage = `New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`;
+          const textMessage = `New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}${locationDescription}. From CODOT: ${c.Description}`;
           console.log(`${timeStamp}: ${textMessage}`);
           return textMessage;
         });
@@ -213,8 +218,9 @@ async function checkTrafficClosures() {
             const mileMarkerText = c.EndMileMarker
               ? `from mile marker ${c.StartMileMarker} to ${c.EndMileMarker}`
               : `at mile marker ${c.StartMileMarker}`;
+            const locationDescription = ` (${c.LocationDescription})` || "";
 
-            const textMessage = `Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}.`;
+            const textMessage = `Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}${locationDescription}.`;
             console.log(`${timeStamp}: ${textMessage}`);
             return textMessage;
           }),
