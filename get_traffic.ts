@@ -107,7 +107,9 @@ function sendMessages(
         ),
       ];
     }, [])
-  );
+  ).catch((err) => {
+    console.error("Caught an error trying to send a message", err);
+  });
 }
 
 function writeToNumbersFile(
