@@ -85,20 +85,6 @@ function readJSONFile(): Promise<AlertObject[] | null> {
     });
 }
 
-function getIcon(closure: AlertObject, open = false): string {
-  const redCircle = "\\U0001F534";
-  const greenCircle = "\\U0001F7E2";
-  const yellowCircle = "\\U0001F7E1";
-
-  if (open) return greenCircle;
-
-  if (closure.RoadwayClosureId === "4") {
-    return redCircle;
-  }
-
-  return yellowCircle;
-}
-
 function sendMessages(
   messages: string[],
   users?: Subscription[]
@@ -201,7 +187,6 @@ async function checkTrafficClosures() {
 
       if (newClosures) {
         updates = newClosures.map((c) => {
-          const icon = getIcon(c);
           const directionText =
             c.IsBothDirectionFlg === "true"
               ? "in both directions"
@@ -211,7 +196,7 @@ async function checkTrafficClosures() {
             : `at mile marker ${c.StartMileMarker}`;
           const severity = c.RoadwayClosureId === "4" ? "(full)" : "(partial)";
 
-          const textMessage = `${icon} New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`;
+          const textMessage = `New ${severity} closure on ${c.RoadName} ${directionText} ${mileMarkerText}. From CODOT: ${c.Description}`;
           console.log(`${timeStamp}: ${textMessage}`);
           return textMessage;
         });
@@ -221,7 +206,6 @@ async function checkTrafficClosures() {
         updates = [
           ...updates,
           ...newOpenings.map((c) => {
-            const icon = getIcon(c, true);
             const directionText =
               c.IsBothDirectionFlg === "true"
                 ? "in both directions"
@@ -230,7 +214,7 @@ async function checkTrafficClosures() {
               ? `from mile marker ${c.StartMileMarker} to ${c.EndMileMarker}`
               : `at mile marker ${c.StartMileMarker}`;
 
-            const textMessage = `${icon} Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}.`;
+            const textMessage = `Road reopened on ${c.RoadName} ${directionText} ${mileMarkerText}.`;
             console.log(`${timeStamp}: ${textMessage}`);
             return textMessage;
           }),
