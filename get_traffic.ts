@@ -5,6 +5,7 @@ import * as B from "bluebird";
 import * as Cron from "cron";
 import * as fs from "fs";
 import * as Twilio from "twilio";
+import { isFuture } from "date-fns";
 
 const readFileAsync: (
   name: string,
@@ -106,6 +107,16 @@ function sendMessages(
         ),
       ];
     }, [])
+  );
+}
+
+function writeToNumbersFile(
+  updatedSubscriptions: Subscription[]
+): Promise<any> {
+  return writeFileAsync(
+    subscriptionsFileName,
+    JSON.stringify(updatedSubscriptions),
+    "utf8"
   );
 }
 
@@ -220,7 +231,12 @@ async function checkTrafficClosures() {
       }
 
       const subscriptions = await readSubscriptionsFile();
-      await sendMessages(updates, subscriptions);
+      const validSubs = subscriptions.filter((sub) =>
+        isFuture(new Date(sub.expiration))
+      );
+
+      await writeToNumbersFile(validSubs);
+      await sendMessages(updates, validSubs);
 
       return writeToJSONFile(updatedClosures, savedClosures);
     })
