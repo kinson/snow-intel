@@ -59,7 +59,7 @@ function sendMessage(h, sub?: Subscription) {
   const twiml = new Twilio.twiml.MessagingResponse();
 
   const welcomeMessage =
-    "You are all set, we will keep you up to date on any road closures for the next day. Check exiting conditions here: cotrip.org/travelAlerts.htm";
+    "You are all set, we will keep you up to date on any road closures for the next day. Check existing conditions here: cotrip.org/travelAlerts.htm";
 
   const formattedExpiration =
     sub &&
