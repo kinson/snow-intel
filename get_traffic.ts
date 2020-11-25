@@ -92,6 +92,7 @@ function saveAnalytics(action: string, payload): Promise<any> {
   const fileName = `${analyticsDirectory}/${time}.json`;
   const contents = JSON.stringify({
     action,
+    time,
     payload: payload || null,
   });
 

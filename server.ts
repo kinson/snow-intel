@@ -80,6 +80,7 @@ function saveAnalytics(number: string, action: string, payload): Promise<any> {
   const contents = JSON.stringify({
     subscriptionHash: hashedNumber,
     action,
+    time,
     payload: payload || null,
   });
 
