@@ -1,6 +1,8 @@
 node_modules
 archive
+analytics
 images.md
 steps.md
 .env
 roaddata.json
+numbers.json

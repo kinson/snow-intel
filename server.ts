@@ -1,7 +1,8 @@
 import * as Hapi from "@hapi/hapi";
 import * as B from "bluebird";
-import { addDays, format, formatISO, subHours } from "date-fns";
+import { addDays, format, formatISO, getTime, subHours } from "date-fns";
 import * as Twilio from "twilio";
+import * as crypto from "crypto";
 
 const readFileAsync: (
   name: string,
@@ -51,6 +52,7 @@ const STOP_STRINGS = [
 
 const denverTzOffset = 7;
 const fileName = "./numbers.json";
+const analyticsDirectory = "./analytics";
 
 function readJSONFile(): Promise<Subscription[] | null> {
   return readFileAsync(fileName, "utf8")
@@ -70,7 +72,26 @@ function unsubscribeNumber(number: string, users?: Subscription[]) {
   return writeToJSONFile(filteredSubscriptions);
 }
 
-function sendMessage(h, sub?: Subscription, unsub = false) {
+function saveAnalytics(number: string, action: string, payload): Promise<any> {
+  const hashedNumber = crypto.createHash("md5").update(number).digest("hex");
+  const time = getTime(new Date());
+
+  const fileName = `${analyticsDirectory}/${time}.json`;
+  const contents = JSON.stringify({
+    subscriptionHash: hashedNumber,
+    action,
+    payload: payload || null,
+  });
+
+  return writeFileAsync(fileName, contents, "utf8");
+}
+
+async function sendMessage(
+  h,
+  number: string,
+  sub?: Subscription,
+  unsub = false
+) {
   const twiml = new Twilio.twiml.MessagingResponse();
 
   if (sub) {
@@ -80,15 +101,19 @@ function sendMessage(h, sub?: Subscription, unsub = false) {
     );
 
     const message = `You are already signed up until ${formattedExpiration}, we will notify you with any road closures.`;
+
     twiml.message(message);
+    await saveAnalytics(number, "DUPLICATE_SIGNUP", message);
   } else if (unsub) {
     const message =
       'You have been unsubscribed from road closure notifications. If you would like to join again reply with "START"';
     twiml.message(message);
+    await saveAnalytics(number, "UNSUBSCRIBE", message);
   } else {
     const message =
       "You are all set, we will keep you up to date on any road closures for the next day. Check existing conditions here: cotrip.org/travelAlerts.htm";
     twiml.message(message);
+    await saveAnalytics(number, "SIGNUP", message);
   }
 
   const response = h.response(twiml.toString());
@@ -114,7 +139,7 @@ const init = async () => {
       // if the user wants to stop, remove them from the file if it exists
       if (STOP_STRINGS.includes(body.Body.toUpperCase())) {
         await unsubscribeNumber(body.From, users);
-        return sendMessage(h, undefined, true);
+        return sendMessage(h, body.From, undefined, true);
       }
 
       if (!users) {
@@ -126,7 +151,7 @@ const init = async () => {
           },
         ]);
 
-        return sendMessage(h);
+        return sendMessage(h, body.From);
       }
 
       const existingSubscription = users.find((u) => u.number === body.From);
@@ -147,11 +172,11 @@ const init = async () => {
           },
         ]);
 
-        return sendMessage(h);
+        return sendMessage(h, body.From);
       }
 
       // if user is not registered, add them and let them know
-      return sendMessage(h, existingSubscription);
+      return sendMessage(h, body.From, existingSubscription);
     },
   });
 

@@ -5,7 +5,7 @@ import * as B from "bluebird";
 import * as Cron from "cron";
 import * as fs from "fs";
 import * as Twilio from "twilio";
-import { isFuture } from "date-fns";
+import { getTime, isFuture } from "date-fns";
 
 const readFileAsync: (
   name: string,
@@ -60,6 +60,7 @@ async function getTrafficData(): Promise<AlertObject[]> {
   return closuresData.data.Alerts.Alert;
 }
 
+const analyticsDirectory = "./analytics";
 const roadDataFileName = "./roaddata.json";
 const subscriptionsFileName = "./numbers.json";
 const archiveDirectory = "./archive";
@@ -85,7 +86,19 @@ function readJSONFile(): Promise<AlertObject[] | null> {
     });
 }
 
-function sendMessages(
+function saveAnalytics(action: string, payload): Promise<any> {
+  const time = getTime(new Date());
+
+  const fileName = `${analyticsDirectory}/${time}.json`;
+  const contents = JSON.stringify({
+    action,
+    payload: payload || null,
+  });
+
+  return writeFileAsync(fileName, contents, "utf8");
+}
+
+async function sendMessages(
   messages: string[],
   users?: Subscription[]
 ): Promise<any> {
@@ -94,20 +107,26 @@ function sendMessages(
     process.env.TWILIO_ACCOUNT_SID,
     process.env.TWILIO_AUTH_TOKEN
   );
-  return B.all(
-    messages.reduce((acc, m) => {
-      return [
-        ...acc,
-        ...users.map((u) =>
-          client.messages.create({
-            body: m,
-            from: "+14342267669",
-            to: u.number,
-          })
-        ),
-      ];
-    }, [])
-  ).catch((err) => {
+
+  const textPromises = messages.reduce((acc, m) => {
+    return [
+      ...acc,
+      ...users.map((u) =>
+        client.messages.create({
+          body: m,
+          from: "+14342267669",
+          to: u.number,
+        })
+      ),
+    ];
+  }, []);
+
+  await saveAnalytics("SEND_MESSAGES", {
+    count: textPromises.length,
+    messages,
+  });
+
+  return B.all(textPromises).catch((err) => {
     console.error("Caught an error trying to send a message", err);
   });
 }
@@ -268,6 +287,13 @@ async function startJob() {
     console.log("created archive directory");
   } catch (err) {
     console.log("archive directory already exists");
+  }
+
+  try {
+    await fs.promises.mkdir(analyticsDirectory);
+    console.log("created analytics directory");
+  } catch (err) {
+    console.log("analytics directory already exists");
   }
 
   const cronPattern = "*/5 * * * *";
