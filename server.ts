@@ -40,6 +40,15 @@ interface Subscription {
   expiration: string;
 }
 
+const STOP_STRINGS = [
+  "STOP",
+  "STOPALL",
+  "UNSUBSCRIBE",
+  "CANCEL",
+  "END",
+  "QUIT",
+];
+
 const denverTzOffset = 7;
 const fileName = "./numbers.json";
 
@@ -55,24 +64,34 @@ function writeToJSONFile(updatedSubscriptions: Subscription[]): Promise<any> {
   return writeFileAsync(fileName, JSON.stringify(updatedSubscriptions), "utf8");
 }
 
-function sendMessage(h, sub?: Subscription) {
+function unsubscribeNumber(number: string, users?: Subscription[]) {
+  if (!users) return;
+  const filteredSubscriptions = users.filter((u) => u.number !== number);
+  return writeToJSONFile(filteredSubscriptions);
+}
+
+function sendMessage(h, sub?: Subscription, unsub = false) {
   const twiml = new Twilio.twiml.MessagingResponse();
 
-  const welcomeMessage =
-    "You are all set, we will keep you up to date on any road closures for the next day. Check existing conditions here: cotrip.org/travelAlerts.htm";
-
-  const formattedExpiration =
-    sub &&
-    format(
+  if (sub) {
+    const formattedExpiration = format(
       subHours(new Date(sub.expiration), denverTzOffset),
       "M/d 'at' h:mm aaaa"
     );
 
-  const dupeMessage = `You are already signed up until ${formattedExpiration}, we will notify you with any road closures.`;
+    const message = `You are already signed up until ${formattedExpiration}, we will notify you with any road closures.`;
+    twiml.message(message);
+  } else if (unsub) {
+    const message =
+      'You have been unsubscribed from road closure notifications. If you would like to join again reply with "START"';
+    twiml.message(message);
+  } else {
+    const message =
+      "You are all set, we will keep you up to date on any road closures for the next day. Check existing conditions here: cotrip.org/travelAlerts.htm";
+    twiml.message(message);
+  }
 
-  twiml.message(sub ? dupeMessage : welcomeMessage);
   const response = h.response(twiml.toString());
-
   response.type("text/xml");
   return response;
 }
@@ -91,6 +110,12 @@ const init = async () => {
 
       // check to see if user is registered
       const users = await readJSONFile();
+
+      // if the user wants to stop, remove them from the file if it exists
+      if (STOP_STRINGS.includes(body.Body.toUpperCase())) {
+        await unsubscribeNumber(body.From, users);
+        return sendMessage(h, undefined, true);
+      }
 
       if (!users) {
         console.log("creating users file");
