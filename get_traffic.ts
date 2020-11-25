@@ -148,7 +148,13 @@ function filterOpenings(closure: AlertObject) {
   const westLongBoundary = -107.399081;
   const eastLongBoundary = -105.128684;
 
-  if (!closure || !closure.Location) {
+  const roadIdBlacklist = [
+    "40", // US 36
+  ];
+
+  const roadInBlacklist = roadIdBlacklist.includes(closure.RoadId);
+
+  if (!closure || !closure.Location || roadInBlacklist) {
     return false;
   }
 
