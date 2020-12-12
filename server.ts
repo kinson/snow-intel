@@ -146,6 +146,10 @@ const init = async () => {
     handler: async (request, h) => {
       const body: TwilioBody = request.payload;
 
+      const now = new Date();
+      const nowISO = formatISO(now);
+      const expiration = addDays(now, 1).toISOString();
+
       // check to see if user is registered
       const users = await readJSONFile();
 
@@ -160,7 +164,7 @@ const init = async () => {
         await writeToJSONFile([
           {
             number: body.From,
-            expiration: addDays(new Date(), 1).toISOString(),
+            expiration,
           },
         ]);
 
@@ -170,9 +174,8 @@ const init = async () => {
       const existingSubscription = users.find((u) => u.number === body.From);
       // if user is registered, let them know
       if (!existingSubscription) {
-        const expiration = addDays(new Date(), 1).toISOString();
         console.log(
-          `${formatISO(new Date())}: adding user until ${expiration} - total: ${
+          `${nowISO}: adding user until ${expiration} - total: ${
             users.length + 1
           }`
         );
@@ -191,11 +194,8 @@ const init = async () => {
       // if the expiration date has already passed, re sign them up
       const expirationDate = new Date(existingSubscription.expiration);
       if (isPast(expirationDate)) {
-        const expiration = addDays(new Date(), 1).toISOString();
         console.log(
-          `${formatISO(
-            new Date()
-          )}: renewing user until ${expiration} - total: ${users.length + 1}`
+          `${nowISO}: renewing user until ${expiration} - total: ${users.length}`
         );
 
         const updatedSubscriptions = users.filter((subscription) => {
