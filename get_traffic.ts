@@ -170,6 +170,7 @@ function filterOpenings(closure: AlertObject) {
 
   const roadIdBlacklist = [
     "40", // US 36
+    "1", // C-470 (somehow got #1 id)
   ];
 
   const roadInBlacklist = roadIdBlacklist.includes(closure.RoadId);

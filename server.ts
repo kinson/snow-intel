@@ -1,6 +1,13 @@
 import * as Hapi from "@hapi/hapi";
 import * as B from "bluebird";
-import { addDays, format, formatISO, getTime, subHours } from "date-fns";
+import {
+  addDays,
+  format,
+  formatISO,
+  getTime,
+  subHours,
+  isPast,
+} from "date-fns";
 import * as Twilio from "twilio";
 import * as crypto from "crypto";
 
@@ -179,6 +186,31 @@ const init = async () => {
         ]);
 
         return sendMessage(h, body.From, undefined, false, users.length + 1);
+      }
+
+      // if the expiration date has already passed, re sign them up
+      const expirationDate = new Date(existingSubscription.expiration);
+      if (isPast(expirationDate)) {
+        const expiration = addDays(new Date(), 1).toISOString();
+        console.log(
+          `${formatISO(
+            new Date()
+          )}: renewing user until ${expiration} - total: ${users.length + 1}`
+        );
+
+        const updatedSubscriptions = users.filter((subscription) => {
+          subscription.number !== body.From;
+        });
+
+        await writeToJSONFile([
+          ...updatedSubscriptions,
+          {
+            number: body.From,
+            expiration,
+          },
+        ]);
+
+        return sendMessage(h, body.From, undefined, false, users.length);
       }
 
       // if user is not registered, add them and let them know
