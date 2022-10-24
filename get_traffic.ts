@@ -298,7 +298,7 @@ async function startJob() {
     console.log("analytics directory already exists");
   }
 
-  const cronPattern = "*/5 * * * *";
+  const cronPattern = "*/1 * * * *";
   const job = new Cron.CronJob(
     cronPattern,
     function () {
